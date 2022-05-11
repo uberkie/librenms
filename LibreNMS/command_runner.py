@@ -171,11 +171,10 @@ def kill_childs_mod(
             # pylint: disable=W0703
             except Exception:
                 pass
+        elif soft_kill:
+            process.terminate()
         else:
-            if soft_kill:
-                process.terminate()
-            else:
-                process.kill()
+            process.kill()
 
     try:
         current_process = psutil.Process(pid if pid is not None else os.getpid())
@@ -312,7 +311,7 @@ def command_runner(
                     process_output = process_output.decode(encoding, errors="ignore")
                 except (ValueError, TypeError):
                     # What happens when str cannot be concatenated
-                    logger.debug("Output cannot be captured {}".format(process_output))
+                    logger.debug(f"Output cannot be captured {process_output}")
         return process_output
 
     def _read_pipe(
@@ -629,9 +628,9 @@ def deferred_command(command, defer_time=300):
     """
     # Use ping as a standard timer in shell since it's present on virtually *any* system
     if os.name == "nt":
-        deferrer = "ping 127.0.0.1 -n {} > NUL & ".format(defer_time)
+        deferrer = f"ping 127.0.0.1 -n {defer_time} > NUL & "
     else:
-        deferrer = "ping 127.0.0.1 -c {} > /dev/null && ".format(defer_time)
+        deferrer = f"ping 127.0.0.1 -c {defer_time} > /dev/null && "
 
     # We'll create a independent shell process that will not be attached to any stdio interface
     # Our command shall be a single string since shell=True

@@ -69,8 +69,7 @@ if __name__ == "__main__":
             service.config.group = [args.group]
 
     info(
-        "Entering main LibreNMS service loop on {}/{}...".format(
-            os.getpid(), threading.current_thread().name
-        )
+        f"Entering main LibreNMS service loop on {os.getpid()}/{threading.current_thread().name}..."
     )
+
     service.start()

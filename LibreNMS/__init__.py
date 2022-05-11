@@ -40,13 +40,13 @@ def logger_get_console_handler():
     try:
         console_handler = logging.StreamHandler(sys.stdout)
     except OSError as exc:
-        print("Cannot log to stdout, trying stderr. Message %s" % exc)
+        print(f"Cannot log to stdout, trying stderr. Message {exc}")
         try:
             console_handler = logging.StreamHandler(sys.stderr)
             console_handler.setFormatter(FORMATTER)
             return console_handler
         except OSError as exc:
-            print("Cannot log to stderr neither. Message %s" % exc)
+            print(f"Cannot log to stderr neither. Message {exc}")
             return False
     else:
         console_handler.setFormatter(FORMATTER)
@@ -71,7 +71,7 @@ def logger_get_file_handler(log_file):
             )
             err_output = str(exc)
             temp_log_file = tempfile.gettempdir() + os.sep + __name__ + ".log"
-            print("Trying temporary log file in " + temp_log_file)
+            print(f"Trying temporary log file in {temp_log_file}")
             file_handler = RotatingFileHandler(
                 temp_log_file,
                 mode="a",
@@ -84,9 +84,9 @@ def logger_get_file_handler(log_file):
             return file_handler, err_output
         except OSError as exc:
             print(
-                "Cannot create temporary log file either. Will not log to file. Message: %s"
-                % exc
+                f"Cannot create temporary log file either. Will not log to file. Message: {exc}"
             )
+
             return False
     else:
         file_handler.setFormatter(FORMATTER)
@@ -100,8 +100,7 @@ def logger_get_logger(log_file=None, temp_log_file=None, debug=False):
         _logger.setLevel(logging.DEBUG)
     else:
         _logger.setLevel(logging.INFO)
-    console_handler = logger_get_console_handler()
-    if console_handler:
+    if console_handler := logger_get_console_handler():
         _logger.addHandler(console_handler)
     if log_file is not None:
         file_handler, err_output = logger_get_file_handler(log_file)
@@ -118,7 +117,7 @@ def logger_get_logger(log_file=None, temp_log_file=None, debug=False):
             try:
                 os.remove(temp_log_file)
             except OSError:
-                logger.warning("Cannot remove temp log file [%s]." % temp_log_file)
+                logger.warning(f"Cannot remove temp log file [{temp_log_file}].")
         file_handler, err_output = logger_get_file_handler(temp_log_file)
         if file_handler:
             _logger.addHandler(file_handler)
@@ -160,21 +159,21 @@ def get_config_data(base_dir):
         if not os.getenv("NODE_ID"):
             logger.critical(".env does not contain a valid NODE_ID setting.")
 
-    except (ImportError, ModuleNotFoundError) as exc:
+    except ImportError as exc:
         logger.critical(
             'Could not import "%s" - Please check that the poller user can read the file, and python-dotenv/python3-dotenv is installed\nAdditional info: %s'
             % (env_path, exc)
         )
         logger.debug("Traceback:", exc_info=True)
 
-    config_cmd = ["/usr/bin/env", "php", "%s/config_to_json.php" % base_dir]
+    config_cmd = ["/usr/bin/env", "php", f"{base_dir}/config_to_json.php"]
     try:
         exit_code, output = command_runner(config_cmd, timeout=300, stderr=False)
         if exit_code != 0:
-            logger.critical("Error in config fetching process: %s" % exit_code)
+            logger.critical(f"Error in config fetching process: {exit_code}")
         return json.loads(output)
     except Exception as exc:
-        logger.critical("ERROR: Could not execute command [%s]: %s" % (config_cmd, exc))
+        logger.critical(f"ERROR: Could not execute command [{config_cmd}]: {exc}")
         logger.debug("Traceback:", exc_info=True)
         return None
 
@@ -192,15 +191,10 @@ def call_script(script, args=()):
     :param args: a tuple of arguments to send to the command
     :returns the output of the command
     """
-    if script.endswith(".php"):
-        # save calling the sh process
-        base = ("/usr/bin/env", "php")
-    else:
-        base = ()
-
-    base_dir = os.path.realpath(os.path.dirname(__file__) + "/..")
-    cmd = base + ("{}/{}".format(base_dir, script),) + tuple(map(str, args))
-    logger.debug("Running {}".format(cmd))
+    base = ("/usr/bin/env", "php") if script.endswith(".php") else ()
+    base_dir = os.path.realpath(f"{os.path.dirname(__file__)}/..")
+    cmd = base + (f"{base_dir}/{script}", ) + tuple(map(str, args))
+    logger.debug(f"Running {cmd}")
     # preexec_fn=os.setsid here keeps process signals from propagating (close_fds=True is default)
     return command_runner(
         cmd, preexec_fn=os.setsid, close_fds=True, timeout=DEFAULT_SCRIPT_TIMEOUT
@@ -253,7 +247,7 @@ class DB:
             conn.ping(True)
             self._db[threading.get_ident()] = conn
         except Exception as e:
-            logger.critical("ERROR: Could not connect to MySQL database! {}".format(e))
+            logger.critical(f"ERROR: Could not connect to MySQL database! {e}")
             raise
 
     def db_conn(self):
@@ -282,7 +276,7 @@ class DB:
             cursor.close()
             return cursor
         except Exception as e:
-            logger.critical("DB Connection exception {}".format(e))
+            logger.critical(f"DB Connection exception {e}")
             self.close()
             raise
 
@@ -290,8 +284,7 @@ class DB:
         """
         Close the connection owned by this thread.
         """
-        conn = self._db.pop(threading.get_ident(), None)
-        if conn:
+        if conn := self._db.pop(threading.get_ident(), None):
             conn.close()
 
 
@@ -358,10 +351,7 @@ class Lock:
         return False
 
     def check_lock(self, name):
-        lock = self._locks.get(name, None)
-        if lock:
-            return lock[1] > time()
-        return False
+        return lock[1] > time() if (lock := self._locks.get(name, None)) else False
 
     def print_locks(self):
         logger.debug(self._locks)
@@ -424,13 +414,11 @@ class RedisLock(Lock):
         self._redis.ping()
         self._namespace = namespace
         logger.debug(
-            "Created redis lock manager with socket_timeout of {}s".format(
-                redis_kwargs["socket_timeout"]
-            )
+            f'Created redis lock manager with socket_timeout of {redis_kwargs["socket_timeout"]}s'
         )
 
     def __key(self, name):
-        return "{}:{}".format(self._namespace, name)
+        return f"{self._namespace}:{name}"
 
     def lock(self, name, owner, expiration=1, allow_owner_relock=False):
         """
@@ -477,9 +465,7 @@ class RedisLock(Lock):
         keys = self._redis.keys(self.__key("*"))
         for key in keys:
             print(
-                "{} locked by {}, expires in {} seconds".format(
-                    key, self._redis.get(key), self._redis.ttl(key)
-                )
+                f"{key} locked by {self._redis.get(key)}, expires in {self._redis.ttl(key)} seconds"
             )
 
 
@@ -504,12 +490,11 @@ class RedisUniqueQueue(object):
             kwargs = {k: v for k, v in redis_kwargs.items() if "sentinel" not in k}
             self._redis = redis.Redis(**kwargs)
         self._redis.ping()
-        self.key = "{}:{}".format(namespace, name)
+        self.key = f"{namespace}:{name}"
         logger.debug(
-            "Created redis queue with socket_timeout of {}s".format(
-                redis_kwargs["socket_timeout"]
-            )
+            f'Created redis queue with socket_timeout of {redis_kwargs["socket_timeout"]}s'
         )
+
 
         # clean up from previous implementations
         if self._redis.type(self.key) != "zset":

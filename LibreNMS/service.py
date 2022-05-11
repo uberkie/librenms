@@ -49,7 +49,7 @@ class ServiceConfig:
     def set_name(self, name):
         if name:
             self.name = name.strip()
-            self.unique_name = "{}-{}".format(self.name, self._uuid)
+            self.unique_name = f"{self.name}-{self._uuid}"
 
     class PollerConfig:
         def __init__(self, workers, frequency, calculate=None):
@@ -241,10 +241,9 @@ class ServiceConfig:
                 logging.getLogger().setLevel(self.log_level)
             except ValueError:
                 logger.error(
-                    "Unknown log level {}, must be one of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'".format(
-                        self.log_level
-                    )
+                    f"Unknown log level {self.log_level}, must be one of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'"
                 )
+
                 logging.getLogger().setLevel(logging.INFO)
 
     def load_poller_config(self, db):
@@ -359,10 +358,9 @@ class Service:
         )
         if self.config.watchdog_enabled:
             logger.info(
-                "Starting watchdog timer for log file: {}".format(
-                    self.config.watchdog_logfile
-                )
+                f"Starting watchdog timer for log file: {self.config.watchdog_logfile}"
             )
+
             self.watchdog_timer = LibreNMS.RecurringTimer(
                 self.config.poller.frequency, self.logfile_watchdog, "watchdog"
             )
@@ -451,14 +449,11 @@ class Service:
         if self.config.watchdog_enabled:
             self.watchdog_timer.start()
 
-        logger.info("LibreNMS Service: {} started!".format(self.config.unique_name))
+        logger.info(f"LibreNMS Service: {self.config.unique_name} started!")
         logger.info(
-            "Poller group {}. Using Python {} and {} locks and queues".format(
-                "0 (default)" if self.config.group == [0] else self.config.group,
-                python_version(),
-                "redis" if isinstance(self._lm, LibreNMS.RedisLock) else "internal",
-            )
+            f'Poller group {"0 (default)" if self.config.group == [0] else self.config.group}. Using Python {python_version()} and {"redis" if isinstance(self._lm, LibreNMS.RedisLock) else "internal"} locks and queues'
         )
+
         logger.info(
             "Queue Workers: Discovery={} Poller={} Services={} Alerting={} Billing={} Ping={}".format(
                 self.config.discovery.workers
@@ -478,10 +473,9 @@ class Service:
 
         if self.config.update_enabled:
             logger.info(
-                "Maintenance tasks will be run every {}".format(
-                    timedelta(seconds=self.config.update_frequency)
-                )
+                f"Maintenance tasks will be run every {timedelta(seconds=self.config.update_frequency)}"
             )
+
         else:
             logger.warning("Maintenance tasks are disabled.")
 
@@ -496,12 +490,9 @@ class Service:
                     self.reap_flag = False
                     self.reap_psutil()
 
-                master_lock = self._acquire_master()
-                if master_lock:
+                if master_lock := self._acquire_master():
                     if not self.is_master:
-                        logger.info(
-                            "{} is now the master dispatcher".format(self.config.name)
-                        )
+                        logger.info(f"{self.config.name} is now the master dispatcher")
                         self.is_master = True
                         self.start_dispatch_timers()
 
@@ -515,15 +506,10 @@ class Service:
 
                         if device[3]:  # discovery
                             self.dispatch_immediate_discovery(device_id, group)
-                else:
-                    if self.is_master:
-                        logger.info(
-                            "{} is no longer the master dispatcher".format(
-                                self.config.name
-                            )
-                        )
-                        self.stop_dispatch_timers()
-                        self.is_master = False  # no longer master
+                elif self.is_master:
+                    logger.info(f"{self.config.name} is no longer the master dispatcher")
+                    self.stop_dispatch_timers()
+                    self.is_master = False  # no longer master
                 sleep(self.config.master_resolution)
         except KeyboardInterrupt:
             pass
@@ -595,10 +581,9 @@ class Service:
             self.db_failures += 1
             if self.db_failures > self.config.max_db_failures:
                 logger.warning(
-                    "Too many DB failures ({}), attempting to release master".format(
-                        self.db_failures
-                    )
+                    f"Too many DB failures ({self.db_failures}), attempting to release master"
                 )
+
                 self._release_master()
                 sleep(
                     self.config.master_resolution
@@ -613,7 +598,7 @@ class Service:
         attempt = 0
         wait = 5
         max_runtime = 86100
-        max_tries = int(max_runtime / wait)
+        max_tries = max_runtime // wait
         logger.info("Waiting for schema lock")
         while not self._lm.lock("schema-update", self.config.unique_name, max_runtime):
             attempt += 1
@@ -668,7 +653,7 @@ class Service:
                 logger.critical(
                     "ERROR: Redis connection required for distributed polling"
                 )
-                logger.critical("Could not connect to Redis. {}".format(e))
+                logger.critical(f"Could not connect to Redis. {e}")
                 self.exit(2)
 
         return LibreNMS.ThreadingLock()
@@ -794,7 +779,7 @@ class Service:
         We do this be creating a file in the base directory (.lock.service) if it doesn't exist and
         obtaining an exclusive lock on that file.
         """
-        lock_file = "{}/{}".format(self.config.BASE_DIR, ".lock.service")
+        lock_file = f"{self.config.BASE_DIR}/.lock.service"
 
         import fcntl
 
@@ -836,22 +821,23 @@ class Service:
 
                 # Record the queue state
                 self._db.query(
-                    "INSERT INTO poller_cluster_stats(parent_poller, poller_type, depth, devices, worker_seconds, workers, frequency) "
-                    'values(@parent_poller_id, "{0}", {1}, {2}, {3}, {4}, {5}) '
-                    "ON DUPLICATE KEY UPDATE depth={1}, devices={2}, worker_seconds={3}, workers={4}, frequency={5}; ".format(
-                        worker_type,
-                        sum(
-                            [
+                    (
+                        "INSERT INTO poller_cluster_stats(parent_poller, poller_type, depth, devices, worker_seconds, workers, frequency) "
+                        'values(@parent_poller_id, "{0}", {1}, {2}, {3}, {4}, {5}) '
+                        "ON DUPLICATE KEY UPDATE depth={1}, devices={2}, worker_seconds={3}, workers={4}, frequency={5}; ".format(
+                            worker_type,
+                            sum(
                                 manager.get_queue(group).qsize()
                                 for group in self.config.group
-                            ]
-                        ),
-                        devices,
-                        worker_seconds,
-                        getattr(self.config, worker_type).workers,
-                        getattr(self.config, worker_type).frequency,
+                            ),
+                            devices,
+                            worker_seconds,
+                            getattr(self.config, worker_type).workers,
+                            getattr(self.config, worker_type).frequency,
+                        )
                     )
                 )
+
         except (pymysql.err.Error, ConnectionResetError, RedisConnectionError):
             logger.critical(
                 "Unable to log performance statistics - is the database still online?",
@@ -870,19 +856,18 @@ class Service:
                 self.config.watchdog_logfile
             )
         except FileNotFoundError as e:
-            logger.error("Log file not found! {}".format(e))
+            logger.error(f"Log file not found! {e}")
             return
 
         if logfile_mdiff > self.config.poller.frequency:
             logger.critical(
-                "BARK! Log file older than {}s, restarting service!".format(
-                    self.config.poller.frequency
-                ),
+                f"BARK! Log file older than {self.config.poller.frequency}s, restarting service!",
                 exc_info=True,
             )
+
             self.restart()
         else:
-            logger.info("Log file updated {}s ago".format(int(logfile_mdiff)))
+            logger.info(f"Log file updated {int(logfile_mdiff)}s ago")
 
     def exit(self, code=0):
         sys.stdout.flush()

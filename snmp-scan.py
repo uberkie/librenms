@@ -82,14 +82,11 @@ def handle_result(data):
     if VERBOSE_LEVEL > 0:
         print(
             "Scanned \033[1m{}\033[0m {}".format(
-                (
-                    "{} ({})".format(data.hostname, data.ip)
-                    if data.hostname
-                    else data.ip
-                ),
+                f"{data.hostname} ({data.ip})" if data.hostname else data.ip,
                 data.output,
             )
         )
+
     else:
         print(get_outcome_symbol(data.outcome), end="")
         stdout.flush()
@@ -141,10 +138,12 @@ def scan_host(scan_ip):
         except CalledProcessError as err:
             output = err.output.decode().rstrip()
             if err.returncode == 2:
-                if "Could not ping" in output:
-                    return Result(scan_ip, hostname, Outcome.UNPINGABLE, output)
-                else:
-                    return Result(scan_ip, hostname, Outcome.FAILED, output)
+                return (
+                    Result(scan_ip, hostname, Outcome.UNPINGABLE, output)
+                    if "Could not ping" in output
+                    else Result(scan_ip, hostname, Outcome.FAILED, output)
+                )
+
             elif err.returncode == 3:
                 return Result(scan_ip, hostname, Outcome.KNOWN, output)
     except KeyboardInterrupt:
@@ -176,18 +175,19 @@ Example: 192.168.0.1/32 will be treated as a single host address""",
         "-t",
         dest="threads",
         type=int,
-        help="How many IPs to scan at a time.  More will increase the scan speed,"
-        + " but could overload your system. Default: {}".format(THREADS),
+        help=(
+            "How many IPs to scan at a time.  More will increase the scan speed,"
+            + f" but could overload your system. Default: {THREADS}"
+        ),
     )
+
     parser.add_argument(
         "-g",
         dest="group",
         type=str,
-        help="The poller group all scanned devices will be added to."
-        " Default: The first group listed in 'distributed_poller_group', or {} if not specificed".format(
-            POLLER_GROUP
-        ),
+        help=f"The poller group all scanned devices will be added to. Default: The first group listed in 'distributed_poller_group', or {POLLER_GROUP} if not specificed",
     )
+
     parser.add_argument("-l", "--legend", action="store_true", help="Print the legend.")
     parser.add_argument(
         "-v",
@@ -276,21 +276,19 @@ Example: 192.168.0.1/32 will be treated as a single host address""",
 
     # check for valid networks
     networks = []
-    for net in netargs if netargs else CONFIG.get("nets", []):
+    for net in netargs or CONFIG.get("nets", []):
         try:
-            networks.append(ip_network("%s" % net, True))
-            debug("Network parsed: {}".format(net), 2)
+            networks.append(ip_network(f"{net}", True))
+            debug(f"Network parsed: {net}", 2)
         except ValueError as e:
-            parser.error("Invalid network format {}".format(e))
+            parser.error(f"Invalid network format {e}")
 
     for net in CONFIG.get("autodiscovery", {}).get("nets-exclude", {}):
         try:
             EXCLUDED_NETS.append(ip_network(net, True))
-            debug("Excluded network: {}".format(net), 2)
+            debug(f"Excluded network: {net}", 2)
         except ValueError as e:
-            parser.error(
-                "Invalid excluded network format {}, check your config.php".format(e)
-            )
+            parser.error(f"Invalid excluded network format {e}, check your config.php")
 
     #################
     # Scan networks #
@@ -335,6 +333,6 @@ Example: 192.168.0.1/32 will be treated as a single host address""",
         stats[Outcome.FAILED],
     )
     if stats[Outcome.EXCLUDED]:
-        summary += ", {} ips excluded by config".format(stats[Outcome.EXCLUDED])
+        summary += f", {stats[Outcome.EXCLUDED]} ips excluded by config"
     print(summary)
     print("Runtime: {:.2f} seconds".format(time() - start_time))

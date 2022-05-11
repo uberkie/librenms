@@ -37,17 +37,18 @@ def parse_requirements(filename):
     """
     try:
         requirements_txt = _read_file(filename)
-        install_requires = [
+        return [
             str(requirement)
-            for requirement in pkg_resources.parse_requirements(requirements_txt)
+            for requirement in pkg_resources.parse_requirements(
+                requirements_txt
+            )
         ]
-        return install_requires
+
     except OSError:
         print(
-            'WARNING: No requirements.txt file found as "{}". Please check path or create an empty one'.format(
-                filename
-            )
+            f'WARNING: No requirements.txt file found as "{filename}". Please check path or create an empty one'
         )
+
         sys.exit(3)
 
 
@@ -60,10 +61,10 @@ try:
     pkg_resources.require(requirements)
 except pkg_resources.DistributionNotFound as req:
     if verbose:
-        print("Package not found: {}".format(req))
+        print(f"Package not found: {req}")
     sys.exit(1)
 except pkg_resources.VersionConflict as req:
     if verbose:
-        print("Required version not satisfied: {}".format(req))
+        print(f"Required version not satisfied: {req}")
     sys.exit(2)
 sys.exit(0)
