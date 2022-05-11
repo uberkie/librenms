@@ -114,15 +114,15 @@ wrappers = {
 
 
 #  <<<EOC
-def memc_alive(name):  # Type: str
+def memc_alive(name):    # Type: str
     """
     Checks if memcache is working by injecting a random string and trying to read it again
     """
     try:
         key = str(uuid.uuid4())
-        MEMC.set(name + ".ping." + key, key, 60)
-        if MEMC.get(name + ".ping." + key) == key:
-            MEMC.delete(name + ".ping." + key)
+        MEMC.set(f"{name}.ping.{key}", key, 60)
+        if MEMC.get(f"{name}.ping.{key}") == key:
+            MEMC.delete(f"{name}.ping.{key}")
             return True
         return False
     except:
@@ -151,7 +151,7 @@ def get_time_tag(step):  # Type: int
 # EOC
 
 
-def print_worker(print_queue, wrapper_type):  # Type: Queue  # Type: str
+def print_worker(print_queue, wrapper_type):    # Type: Queue  # Type: str
     """
     A seperate queue and a single worker for printing information to the screen prevents
     the good old joke:
@@ -175,7 +175,7 @@ def print_worker(print_queue, wrapper_type):  # Type: Queue  # Type: str
                     DISTRIBUTED_POLLING = False
                     nodes = nodeso
                 if nodes is not nodeso:
-                    logger.info("{} Node(s) Total".format(nodes))
+                    logger.info(f"{nodes} Node(s) Total")
                     nodeso = nodes
             else:
                 memc_touch(NODES_TAG, wrappers[wrapper_type]["memc_touch_time"])
@@ -188,7 +188,6 @@ def print_worker(print_queue, wrapper_type):  # Type: Queue  # Type: str
                     exit_code,
                 ) = print_queue.get(False)
             except:
-                pass
                 try:
                     time.sleep(1)
                 except:
@@ -207,17 +206,15 @@ def print_worker(print_queue, wrapper_type):  # Type: Queue  # Type: str
         DISCOVERED_DEVICES_COUNT += 1
         if elapsed_time < STEPPING and exit_code in VALID_EXIT_CODES:
             logger.info(
-                "worker {} finished device {} in {} seconds".format(
-                    worker_id, device_id, elapsed_time
-                )
+                f"worker {worker_id} finished device {device_id} in {elapsed_time} seconds"
             )
+
         else:
             logger.warning(
-                "worker {} finished device {} in {} seconds with exit code {}".format(
-                    worker_id, device_id, elapsed_time, exit_code
-                )
+                f"worker {worker_id} finished device {device_id} in {elapsed_time} seconds with exit code {exit_code}"
             )
-            logger.debug("Command was {}".format(command))
+
+            logger.debug(f"Command was {command}")
         print_queue.task_done()
 
 
@@ -241,45 +238,41 @@ def poll_worker(
         #  <<<EOC
         if (
             not DISTRIBUTED_POLLING
-            or MEMC.get("{}.device.{}{}".format(wrapper_type, device_id, TIME_TAG))
-            is None
+            or MEMC.get(f"{wrapper_type}.device.{device_id}{TIME_TAG}") is None
         ):
             if DISTRIBUTED_POLLING:
                 result = MEMC.add(
-                    "{}.device.{}{}".format(wrapper_type, device_id, TIME_TAG),
+                    f"{wrapper_type}.device.{device_id}{TIME_TAG}",
                     config["distributed_poller_name"],
                     STEPPING,
                 )
+
                 if not result:
                     logger.info(
-                        "The device {} appears to be being checked by another node".format(
-                            device_id
-                        )
+                        f"The device {device_id} appears to be being checked by another node"
                     )
+
                     poll_queue.task_done()
                     continue
                 if not memc_alive(wrapper_type) and IS_NODE:
                     logger.warning(
-                        "Lost Memcached, Not checking Device {} as Node. Master will check it.".format(
-                            device_id
-                        )
+                        f"Lost Memcached, Not checking Device {device_id} as Node. Master will check it."
                     )
+
                     poll_queue.task_done()
                     continue
             # EOC
             try:
                 start_time = time.time()
 
-                device_log = os.path.join(
-                    log_dir, "{}_device_{}.log".format(wrapper_type, device_id)
-                )
+                device_log = os.path.join(log_dir, f"{wrapper_type}_device_{device_id}.log")
                 executable = os.path.join(
                     os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
                     wrappers[wrapper_type]["executable"],
                 )
-                command = "/usr/bin/env php {} -h {}".format(executable, device_id)
+                command = f"/usr/bin/env php {executable} -h {device_id}"
                 if debug:
-                    command = command + " -d"
+                    command += " -d"
                 exit_code, output = command_runner(
                     command,
                     shell=True,
@@ -288,14 +281,13 @@ def poll_worker(
                 )
                 if exit_code not in [0, 6]:
                     logger.error(
-                        "Thread {} exited with code {}".format(
-                            threading.current_thread().name, exit_code
-                        )
+                        f"Thread {threading.current_thread().name} exited with code {exit_code}"
                     )
+
                     ERRORS += 1
                     logger.error(output)
                 elif exit_code == 5:
-                    logger.info("Unreachable device {}".format(device_id))
+                    logger.info(f"Unreachable device {device_id}")
                 else:
                     logger.debug(output)
                 if debug:

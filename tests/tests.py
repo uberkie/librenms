@@ -9,8 +9,6 @@ try:
     import redis
 except ImportError:
     print("Redis tests won't be run")
-    pass
-
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import LibreNMS
 
